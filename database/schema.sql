@@ -1,5 +1,5 @@
 -- ============================================================================
--- SPEC GESTIONALE - Schema Database Completo (SQLite)
+-- YES! GESTIONALE - Schema Database Completo (SQLite)
 -- ============================================================================
 
 -- ============================================================================
@@ -103,7 +103,7 @@ CREATE INDEX IF NOT EXISTS idx_iscrizioni_storiche_data ON iscrizioni_storiche(d
 
 -- ============================================================================
 -- 5. TABELLA: AVANZAMENTO_PERCORSO
--- Tracciamento del percorso formativo per corsista (11 tappe)
+-- Tracciamento del percorso formativo per corsista (13 tappe)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS avanzamento_percorso (
     id_avanzamento TEXT PRIMARY KEY,
@@ -121,7 +121,9 @@ CREATE TABLE IF NOT EXISTS avanzamento_percorso (
     tappa_8_rami_2 INTEGER DEFAULT 0,
     tappa_9_rami_3 INTEGER DEFAULT 0,
     tappa_10_rami_4 INTEGER DEFAULT 0,
-    tappa_11_semi INTEGER DEFAULT 0,
+    tappa_11_semi_1 INTEGER DEFAULT 0,
+    tappa_12_semi_2 INTEGER DEFAULT 0,
+    tappa_13_i_desideri_del_cuore INTEGER DEFAULT 0,
     totale_tappe_completate INTEGER DEFAULT 0,
     percentuale_avanzamento DECIMAL(5,2) DEFAULT 0,
     data_calcolo TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

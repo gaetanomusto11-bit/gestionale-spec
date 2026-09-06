@@ -198,14 +198,25 @@ export async function archiveIscrizione(idIscrizione) {
       throw new Error(`Iscrizione ${idIscrizione} non trovata`);
     }
 
-    await syncToIscrzioniStoriche(iscrizione);
+    // Copia l'iscrizione così com'è, mantenendo lo stato_pagamento reale
+    const iscrizioneDaArchiviare = {
+      ...iscrizione
+      // stato_pagamento rimane QUELLO ATTUALE (non ricalcolato)
+    };
+
+    await syncToIscrzioniStoriche(iscrizioneDaArchiviare);
 
     await execute(
       `DELETE FROM iscrizioni_attive WHERE id_iscrizione = ?`,
       [idIscrizione]
     );
 
+    // Calcola automaticamente l'avanzamento percorso
+    await calculateAvanzamentoPercorso(iscrizione.id_corsista);
+
     console.log(`✓ Iscrizione archiviata e rimossa da attive: ${idIscrizione}`);
+    console.log(`✓ Stato pagamento mantenuto: ${iscrizioneDaArchiviare.stato_pagamento}`);
+    console.log(`✓ Avanzamento percorso calcolato per corsista: ${iscrizione.id_corsista}`);
   } catch (error) {
     console.error('Errore archiviazione iscrizione:', error);
     throw error;
@@ -236,16 +247,28 @@ export async function calculateAvanzamentoPercorso(idCorsista) {
     const mappaCorsiTappe = {
       'Presentazione SPEC': 'tappa_1_presentazione_spec',
       'Serate': 'tappa_2_serate',
-      'Radici I': 'tappa_3_radici_1',
-      'Radici II': 'tappa_4_radici_2',
-      'Radici III': 'tappa_5_radici_3',
-      'Radici IV': 'tappa_6_radici_4',
-      'Rami I': 'tappa_7_rami_1',
-      'Rami II': 'tappa_8_rami_2',
-      'Rami III': 'tappa_9_rami_3',
-      'Rami IV': 'tappa_10_rami_4',
-      'Semi': 'tappa_11_semi'
+      'Radici 1': 'tappa_3_radici_1',
+      'Radici 2': 'tappa_4_radici_2',
+      'Radici 3': 'tappa_5_radici_3',
+      'Radici 4': 'tappa_6_radici_4',
+      'Rami 1': 'tappa_7_rami_1',
+      'Rami 2': 'tappa_8_rami_2',
+      'Rami 3': 'tappa_9_rami_3',
+      'Rami 4': 'tappa_10_rami_4',
+      'Semi 1': 'tappa_11_semi_1',
+      'Semi 2': 'tappa_12_semi_2',
+      'I Desideri del Cuore': 'tappa_13_i_desideri_del_cuore'
     };
+
+    // Tappe INTRODUTTIVE (non contano nella percentuale)
+    const tappeIntroduttive = ['tappa_1_presentazione_spec', 'tappa_2_serate'];
+    
+    // Tappe CONTEGGIABILI per la percentuale (11 tappe)
+    const tappeConteggiabili = [
+      'tappa_3_radici_1', 'tappa_4_radici_2', 'tappa_5_radici_3', 'tappa_6_radici_4',
+      'tappa_7_rami_1', 'tappa_8_rami_2', 'tappa_9_rami_3', 'tappa_10_rami_4',
+      'tappa_11_semi_1', 'tappa_12_semi_2', 'tappa_13_i_desideri_del_cuore'
+    ];
 
     let tappeCompletate = 0;
     const updateData = {};
@@ -255,10 +278,14 @@ export async function calculateAvanzamentoPercorso(idCorsista) {
       const tappa = mappaCorsiTappe[nomeCorso];
       if (tappa) {
         updateData[tappa] = 1;
-        tappeCompletate++;
+        // Conta solo se è una tappa conteggiabile (non introduttiva)
+        if (tappeConteggiabili.includes(tappa)) {
+          tappeCompletate++;
+        }
       }
     }
 
+    // Calcolo percentuale su 11 tappe conteggiabili
     const percentuale = (tappeCompletate / 11) * 100;
 
     const existing = await queryOne(
@@ -267,10 +294,26 @@ export async function calculateAvanzamentoPercorso(idCorsista) {
     );
 
     if (existing) {
-      const setClauses = Object.keys(updateData).map(k => `${k} = ${updateData[k]}`).join(', ');
+      // Costruisci il SET clause in modo corretto
+      let setClauses = [];
+      
+      // Aggiungi gli aggiornamenti delle tappe
+      if (Object.keys(updateData).length > 0) {
+        for (const [tappa, valore] of Object.entries(updateData)) {
+          setClauses.push(`${tappa} = 1`);
+        }
+      }
+      
+      // Aggiungi sempre il totale e percentuale
+      setClauses.push('totale_tappe_completate = ?');
+      setClauses.push('percentuale_avanzamento = ?');
+      setClauses.push('data_calcolo = CURRENT_TIMESTAMP');
+      
+      const setClause = setClauses.join(', ');
+      
       await execute(
         `UPDATE avanzamento_percorso 
-         SET ${setClauses}, totale_tappe_completate = ?, percentuale_avanzamento = ?, data_calcolo = CURRENT_TIMESTAMP
+         SET ${setClause}
          WHERE id_corsista = ?`,
         [tappeCompletate, Math.round(percentuale * 100) / 100, idCorsista]
       );

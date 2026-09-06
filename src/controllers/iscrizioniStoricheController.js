@@ -27,6 +27,9 @@ export async function getIscrizioniStoriche(req, res) {
 
     const iscrizioni = await queryAll(sql, params);
 
+    // NON ricalcolare lo stato! Mantieni ESATTAMENTE quello nel database
+    // Lo stato_pagamento_finale è già salvato correttamente quando l'iscrizione è stata archiviata
+
     res.json({
       success: true,
       data: iscrizioni,
